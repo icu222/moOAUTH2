@@ -1,0 +1,54 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: healthsync-user
+    
+  datasource:
+    url: jdbc:postgresql://psql-digitalgarage-01.postgres.database.azure.com:5432/healthsync_db
+    username: team1tier
+    password: Hi5Jessica!
+    driver-class-name: org.postgresql.Driver
+    
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        default_schema: user_service
+    show-sql: true
+
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:67517118327-m9mqpr78k24f5j2iillj2ovjdt3f2vt4.apps.googleusercontent.com}
+            client-secret: ${GOOGLE_CLIENT_SECRET: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}
+            scope:
+              - openid
+              - profile
+              - email
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+        provider:
+          google:
+            authorization-uri: https://accounts.google.com/o/oauth2/v2/auth
+            token-uri: https://www.googleapis.com/oauth2/v4/token
+            user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
+            user-name-attribute: sub
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWT_ISSUER_URI:http://localhost:8080}
+
+jwt:
+  secret: ${JWT_SECRET:mySecretKeyForHealthSyncApplicationThatNeedsToBeAtLeast32Characters}
+  access-token-expiration: 1800000 # 30 minutes in milliseconds
+  refresh-token-expiration: 604800000 # 7 days in milliseconds
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+    com.healthsync: DEBUG

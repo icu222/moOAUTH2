@@ -1,0 +1,1752 @@
+// README.md
+# HealthSync User Service
+
+Spring Boot 3.4.0 기반의 Google OAuth2 로그인 및 JWT 토큰 인증을 제공하는 사용자 서비스입니다.
+
+## 기술 스택
+
+- **Java 17**
+- **Spring Boot 3.4.0**
+- **Spring Security 6**
+- **Spring OAuth2 Client**
+- **Spring OAuth2 Resource Server**
+- **Spring Data JPA**
+- **PostgreSQL**
+
+## 주요 기능
+
+1. **Google OAuth2 로그인**
+   - Spring OAuth2 Client를 통한 Google 소셜 로그인
+   - 사용자 정보 자동 저장 및 업데이트
+
+2. **JWT 토큰 기반 인증**
+   - Spring OAuth2 Resource Server 사용
+   - RSA 키 쌍을 통한 JWT 토큰 생성 및 검증
+   - Access Token (30분) + Refresh Token (7일) 구조
+   - 토큰 기반 사용자 인증 및 권한 관리
+
+3. **리프레시 토큰 관리**
+   - 자동 토큰 갱신 기능
+   - 보안을 위한 리프레시 토큰 로테이션
+   - 만료된 토큰 자동 정리
+
+4. **사용자 관리**
+   - 사용자 프로필 조회 및 업데이트
+   - 직업군 코드 관리
+   - 최종 로그인 시간 추적
+
+## API 엔드포인트
+
+### 인증 관련
+- `GET /oauth2/authorization/google` - Google 로그인 시작
+- `GET /api/auth/success` - Google 로그인 완료 후 JWT 토큰 발급
+- `POST /api/auth/refresh` - 리프레시 토큰으로 액세스 토큰 갱신
+- `POST /api/auth/logout` - 로그아웃 (일반)
+- `POST /api/auth/logout/{memberId}` - 특정 사용자 로그아웃
+
+### 사용자 관리
+- `GET /api/users/me` - 현재 사용자 정보 조회 (인증 필요)
+- `PUT /api/users/me` - 현재 사용자 정보 업데이트 (인증 필요)
+- `GET /api/users/{id}` - 특정 사용자 정보 조회 (인증 필요)
+
+## 토큰 구조
+
+### Access Token (30분)
+```json
+{
+  "iss": "healthsync",
+  "sub": "1",
+  "email": "user@example.com",
+  "name": "사용자명",
+  "role": "ROLE_USER",
+  "jobCategoryCode": 1,
+  "jobCategoryName": "개발",
+  "tokenType": "access",
+  "exp": 1640995200
+}
+```
+
+### Refresh Token (7일)
+- UUID 기반 랜덤 토큰
+- 데이터베이스에 저장되어 관리
+- 사용 시 새로운 토큰으로 교체 (토큰 로테이션)
+
+## 데이터베이스 스키마
+
+### users 테이블
+```sql
+CREATE TABLE users (
+    member_id BIGSERIAL PRIMARY KEY,
+    google_user_id VARCHAR(100) UNIQUE NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    name VARCHAR(50) NOT NULL,
+    birth_date DATE,
+    job_category_code INTEGER,
+    job_category_name VARCHAR(20),
+    role VARCHAR(20) DEFAULT 'USER',
+    created_at TIMESTAMP DEFAULT NOW(),
+    last_login_at TIMESTAMP
+);
+```
+
+### refresh_tokens 테이블
+```sql
+CREATE TABLE refresh_tokens (
+    id BIGSERIAL PRIMARY KEY,
+    token VARCHAR(500) UNIQUE NOT NULL,
+    member_id BIGINT NOT NULL,
+    expiry_date TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    FOREIGN KEY (member_id) REFERENCES users(member_id)
+);
+```
+
+## 직업군 코드
+```
+1: 개발
+2: PM
+3: 마케팅
+4: 영업
+5: 인프라운영
+6: 고객상담
+7: 기타
+```
+
+## 환경 설정
+
+### 1. 데이터베이스 설정 (PostgreSQL)
+```sql
+CREATE DATABASE healthsync;
+CREATE USER healthsync_user WITH PASSWORD 'password';
+GRANT ALL PRIVILEGES ON DATABASE healthsync TO healthsync_user;
+```
+
+### 2. Google OAuth2 설정
+Google Cloud Console에서 OAuth2 클라이언트 ID를 생성하고 다음 환경 변수를 설정하세요:
+
+**리다이렉트 URI 설정**: `http://localhost:8080/login/oauth2/code/google`
+
+```bash
+export GOOGLE_CLIENT_ID=your-google-client-id
+export GOOGLE_CLIENT_SECRET=your-google-client-secret
+export JWT_SECRET=your-jwt-secret-key-at-least-32-characters
+```
+
+### 3. 애플리케이션 실행
+```bash
+./gradlew bootRun
+```
+
+## 사용 방법
+
+### 1. 로그인 플로우
+```
+1. 클라이언트 -> GET /oauth2/authorization/google
+2. Google
+
+
+
+
+// build.gradle
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.4.0'
+    id 'io.spring.dependency-management' version '1.1.4'
+}
+
+group = 'com.healthsync'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    
+    runtimeOnly 'org.postgresql:postgresql'
+    
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+// src/main/resources/application.yml
+server:
+  port: 8080
+
+spring:
+  application:
+    name: healthsync-user
+    
+  datasource:
+    url: jdbc:postgresql://localhost:5432/healthsync
+    username: healthsync_user
+    password: password
+    driver-class-name: org.postgresql.Driver
+    
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    show-sql: true
+    
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:your-google-client-id}
+            client-secret: ${GOOGLE_CLIENT_SECRET:your-google-client-secret}
+            scope:
+              - openid
+              - profile
+              - email
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+        provider:
+          google:
+            authorization-uri: https://accounts.google.com/o/oauth2/v2/auth
+            token-uri: https://www.googleapis.com/oauth2/v4/token
+            user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
+            user-name-attribute: sub
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWT_ISSUER_URI:http://localhost:8080}
+
+jwt:
+  secret: ${JWT_SECRET:mySecretKeyForHealthSyncApplicationThatNeedsToBeAtLeast32Characters}
+  access-token-expiration: 1800000 # 30 minutes in milliseconds
+  refresh-token-expiration: 604800000 # 7 days in milliseconds
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+    com.healthsync: DEBUG
+
+// src/main/java/com/healthsync/user/domain/RefreshToken.java
+package com.healthsync.user.domain;
+
+import java.time.LocalDateTime;
+
+public class RefreshToken {
+    private Long id;
+    private String token;
+    private Long memberId;
+    private LocalDateTime expiryDate;
+    private LocalDateTime createdAt;
+
+    public RefreshToken() {
+        this.createdAt = LocalDateTime.now();
+    }
+
+    public RefreshToken(String token, Long memberId, LocalDateTime expiryDate) {
+        this();
+        this.token = token;
+        this.memberId = memberId;
+        this.expiryDate = expiryDate;
+    }
+
+    public boolean isExpired() {
+        return LocalDateTime.now().isAfter(expiryDate);
+    }
+
+    // Getters and Setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+
+    public String getToken() { return token; }
+    public void setToken(String token) { this.token = token; }
+
+    public Long getMemberId() { return memberId; }
+    public void setMemberId(Long memberId) { this.memberId = memberId; }
+
+    public LocalDateTime getExpiryDate() { return expiryDate; }
+    public void setExpiryDate(LocalDateTime expiryDate) { this.expiryDate = expiryDate; }
+
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+}
+package com.healthsync.user.domain;
+
+public enum JobCategory {
+    DEVELOPER(1, "개발"),
+    PM(2, "PM"),
+    MARKETING(3, "마케팅"),
+    SALES(4, "영업"),
+    INFRA_OPERATION(5, "인프라운영"),
+    CUSTOMER_SERVICE(6, "고객상담"),
+    ETC(7, "기타");
+
+    private final int code;
+    private final String name;
+
+    JobCategory(int code, String name) {
+        this.code = code;
+        this.name = name;
+    }
+
+    public int getCode() {
+        return code;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public static JobCategory fromCode(int code) {
+        for (JobCategory category : JobCategory.values()) {
+            if (category.code == code) {
+                return category;
+            }
+        }
+        return ETC; // 기본값
+    }
+}
+
+// src/main/java/com/healthsync/user/domain/UserRole.java
+package com.healthsync.user.domain;
+
+public enum UserRole {
+    USER, ADMIN
+}
+
+// src/main/java/com/healthsync/user/domain/User.java
+package com.healthsync.user.domain;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
+public class User {
+    private Long memberId;
+    private String googleUserId;
+    private String email;
+    private String name;
+    private LocalDate birthDate;
+    private Integer jobCategoryCode;
+    private String jobCategoryName;
+    private UserRole role;
+    private LocalDateTime createdAt;
+    private LocalDateTime lastLoginAt;
+
+    public User() {
+        this.role = UserRole.USER;
+        this.createdAt = LocalDateTime.now();
+    }
+
+    public User(String googleUserId, String email, String name) {
+        this();
+        this.googleUserId = googleUserId;
+        this.email = email;
+        this.name = name;
+        this.lastLoginAt = LocalDateTime.now();
+    }
+
+    // 직업군 설정 편의 메서드
+    public void setJobCategory(JobCategory jobCategory) {
+        if (jobCategory != null) {
+            this.jobCategoryCode = jobCategory.getCode();
+            this.jobCategoryName = jobCategory.getName();
+        }
+    }
+
+    public JobCategory getJobCategory() {
+        if (jobCategoryCode != null) {
+            return JobCategory.fromCode(jobCategoryCode);
+        }
+        return null;
+    }
+
+    // 로그인 시간 업데이트
+    public void updateLastLoginAt() {
+        this.lastLoginAt = LocalDateTime.now();
+    }
+
+    // Getters and Setters
+    public Long getMemberId() { return memberId; }
+    public void setMemberId(Long memberId) { this.memberId = memberId; }
+
+    public String getGoogleUserId() { return googleUserId; }
+    public void setGoogleUserId(String googleUserId) { this.googleUserId = googleUserId; }
+
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
+
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+
+    public LocalDate getBirthDate() { return birthDate; }
+    public void setBirthDate(LocalDate birthDate) { this.birthDate = birthDate; }
+
+    public Integer getJobCategoryCode() { return jobCategoryCode; }
+    public void setJobCategoryCode(Integer jobCategoryCode) { this.jobCategoryCode = jobCategoryCode; }
+
+    public String getJobCategoryName() { return jobCategoryName; }
+    public void setJobCategoryName(String jobCategoryName) { this.jobCategoryName = jobCategoryName; }
+
+    public UserRole getRole() { return role; }
+    public void setRole(UserRole role) { this.role = role; }
+
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public LocalDateTime getLastLoginAt() { return lastLoginAt; }
+    public void setLastLoginAt(LocalDateTime lastLoginAt) { this.lastLoginAt = lastLoginAt; }
+}
+
+// src/main/java/com/healthsync/user/repository/entity/UserEntity.java
+package com.healthsync.user.repository.entity;
+
+import com.healthsync.user.domain.User;
+import com.healthsync.user.domain.UserRole;
+import com.healthsync.user.domain.JobCategory;
+import jakarta.persistence.*;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "users")
+@EntityListeners(AuditingEntityListener.class)
+public class UserEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "member_id")
+    private Long memberId;
+
+    @Column(name = "google_user_id", length = 100, unique = true, nullable = false)
+    private String googleUserId;
+
+    @Column(name = "email", length = 100, unique = true, nullable = false)
+    private String email;
+
+    @Column(name = "name", length = 50, nullable = false)
+    private String name;
+
+    @Column(name = "birth_date")
+    private LocalDate birthDate;
+
+    @Column(name = "job_category_code")
+    private Integer jobCategoryCode;
+
+    @Column(name = "job_category_name", length = 20)
+    private String jobCategoryName;
+
+    @Enumerated(EnumType.STRING)
+    private UserRole role = UserRole.USER;
+
+    @CreatedDate
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "last_login_at")
+    private LocalDateTime lastLoginAt;
+
+    protected UserEntity() {}
+
+    public UserEntity(String googleUserId, String email, String name) {
+        this.googleUserId = googleUserId;
+        this.email = email;
+        this.name = name;
+        this.role = UserRole.USER;
+        this.lastLoginAt = LocalDateTime.now();
+    }
+
+    public static UserEntity fromDomain(User user) {
+        UserEntity entity = new UserEntity();
+        entity.memberId = user.getMemberId();
+        entity.googleUserId = user.getGoogleUserId();
+        entity.email = user.getEmail();
+        entity.name = user.getName();
+        entity.birthDate = user.getBirthDate();
+        entity.jobCategoryCode = user.getJobCategoryCode();
+        entity.jobCategoryName = user.getJobCategoryName();
+        entity.role = user.getRole();
+        entity.createdAt = user.getCreatedAt();
+        entity.lastLoginAt = user.getLastLoginAt();
+        return entity;
+    }
+
+    public User toDomain() {
+        User user = new User();
+        user.setMemberId(this.memberId);
+        user.setGoogleUserId(this.googleUserId);
+        user.setEmail(this.email);
+        user.setName(this.name);
+        user.setBirthDate(this.birthDate);
+        user.setJobCategoryCode(this.jobCategoryCode);
+        user.setJobCategoryName(this.jobCategoryName);
+        user.setRole(this.role);
+        user.setCreatedAt(this.createdAt);
+        user.setLastLoginAt(this.lastLoginAt);
+        return user;
+    }
+
+    // 로그인 시간 업데이트 편의 메서드
+    public void updateLastLoginAt() {
+        this.lastLoginAt = LocalDateTime.now();
+    }
+
+    // Getters and Setters
+    public Long getMemberId() { return memberId; }
+    public void setMemberId(Long memberId) { this.memberId = memberId; }
+
+    public String getGoogleUserId() { return googleUserId; }
+    public void setGoogleUserId(String googleUserId) { this.googleUserId = googleUserId; }
+
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
+
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+
+    public LocalDate getBirthDate() { return birthDate; }
+    public void setBirthDate(LocalDate birthDate) { this.birthDate = birthDate; }
+
+    public Integer getJobCategoryCode() { return jobCategoryCode; }
+    public void setJobCategoryCode(Integer jobCategoryCode) { this.jobCategoryCode = jobCategoryCode; }
+
+    public String getJobCategoryName() { return jobCategoryName; }
+    public void setJobCategoryName(String jobCategoryName) { this.jobCategoryName = jobCategoryName; }
+
+    public UserRole getRole() { return role; }
+    public void setRole(UserRole role) { this.role = role; }
+
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public LocalDateTime getLastLoginAt() { return lastLoginAt; }
+    public void setLastLoginAt(LocalDateTime lastLoginAt) { this.lastLoginAt = lastLoginAt; }
+}
+
+// src/main/java/com/healthsync/user/repository/jpa/RefreshTokenRepository.java
+package com.healthsync.user.repository.jpa;
+
+import com.healthsync.user.repository.entity.RefreshTokenEntity;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.time.LocalDateTime;
+import java.util.Optional;
+
+@Repository
+public interface RefreshTokenRepository extends JpaRepository<RefreshTokenEntity, Long> {
+    Optional<RefreshTokenEntity> findByToken(String token);
+    Optional<RefreshTokenEntity> findByMemberId(Long memberId);
+    
+    @Modifying
+    @Query("DELETE FROM RefreshTokenEntity r WHERE r.memberId = :memberId")
+    void deleteByMemberId(@Param("memberId") Long memberId);
+    
+    @Modifying
+    @Query("DELETE FROM RefreshTokenEntity r WHERE r.expiryDate < :now")
+    void deleteExpiredTokens(@Param("now") LocalDateTime now);
+}
+package com.healthsync.user.repository.jpa;
+
+import com.healthsync.user.repository.entity.UserEntity;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.time.LocalDateTime;
+import java.util.Optional;
+
+@Repository
+public interface UserRepository extends JpaRepository<UserEntity, Long> {
+    Optional<UserEntity> findByEmail(String email);
+    Optional<UserEntity> findByGoogleUserId(String googleUserId);
+    boolean existsByEmail(String email);
+    boolean existsByGoogleUserId(String googleUserId);
+
+    @Modifying
+    @Query("UPDATE UserEntity u SET u.lastLoginAt = :lastLoginAt WHERE u.memberId = :memberId")
+    void updateLastLoginAt(@Param("memberId") Long memberId, @Param("lastLoginAt") LocalDateTime lastLoginAt);
+}
+
+// src/main/java/com/healthsync/user/dto/UserUpdateRequest.java
+package com.healthsync.user.dto;
+
+import com.healthsync.user.domain.JobCategory;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Past;
+
+import java.time.LocalDate;
+
+public class UserUpdateRequest {
+    private String name;
+    
+    @Past(message = "생년월일은 과거 날짜여야 합니다")
+    private LocalDate birthDate;
+    
+    private Integer jobCategoryCode;
+
+    public UserUpdateRequest() {}
+
+    // Getters and Setters
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+
+    public LocalDate getBirthDate() { return birthDate; }
+    public void setBirthDate(LocalDate birthDate) { this.birthDate = birthDate; }
+
+    public Integer getJobCategoryCode() { return jobCategoryCode; }
+    public void setJobCategoryCode(Integer jobCategoryCode) { this.jobCategoryCode = jobCategoryCode; }
+
+    // 직업군 카테고리 가져오기
+    public JobCategory getJobCategory() {
+        if (jobCategoryCode != null) {
+            return JobCategory.fromCode(jobCategoryCode);
+        }
+        return null;
+    }
+}
+package com.healthsync.user.dto;
+
+import java.util.Map;
+
+public class OAuth2UserInfo {
+    private Map<String, Object> attributes;
+
+    public OAuth2UserInfo(Map<String, Object> attributes) {
+        this.attributes = attributes;
+    }
+
+    public String getId() {
+        return (String) attributes.get("sub");
+    }
+
+    public String getName() {
+        return (String) attributes.get("name");
+    }
+
+    public String getEmail() {
+        return (String) attributes.get("email");
+    }
+
+    public String getImageUrl() {
+        return (String) attributes.get("picture");
+    }
+
+    public Map<String, Object> getAttributes() {
+        return attributes;
+    }
+}
+
+// src/main/java/com/healthsync/user/dto/TokenResponse.java
+package com.healthsync.user.dto;
+
+public class TokenResponse {
+    private String accessToken;
+    private String tokenType = "Bearer";
+    private Long expiresIn;
+
+    public TokenResponse() {}
+
+    public TokenResponse(String accessToken, Long expiresIn) {
+        this.accessToken = accessToken;
+        this.expiresIn = expiresIn;
+    }
+
+    public String getAccessToken() { return accessToken; }
+    public void setAccessToken(String accessToken) { this.accessToken = accessToken; }
+
+    public String getTokenType() { return tokenType; }
+    public void setTokenType(String tokenType) { this.tokenType = tokenType; }
+
+    public Long getExpiresIn() { return expiresIn; }
+    public void setExpiresIn(Long expiresIn) { this.expiresIn = expiresIn; }
+}
+
+// src/main/java/com/healthsync/user/dto/UserProfileResponse.java
+package com.healthsync.user.dto;
+
+import com.healthsync.user.domain.User;
+import com.healthsync.user.domain.UserRole;
+import com.healthsync.user.domain.JobCategory;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
+public class UserProfileResponse {
+    private Long memberId;
+    private String email;
+    private String name;
+    private LocalDate birthDate;
+    private Integer jobCategoryCode;
+    private String jobCategoryName;
+    private UserRole role;
+    private LocalDateTime createdAt;
+    private LocalDateTime lastLoginAt;
+
+    public UserProfileResponse() {}
+
+    public UserProfileResponse(User user) {
+        this.memberId = user.getMemberId();
+        this.email = user.getEmail();
+        this.name = user.getName();
+        this.birthDate = user.getBirthDate();
+        this.jobCategoryCode = user.getJobCategoryCode();
+        this.jobCategoryName = user.getJobCategoryName();
+        this.role = user.getRole();
+        this.createdAt = user.getCreatedAt();
+        this.lastLoginAt = user.getLastLoginAt();
+    }
+
+    // Getters and Setters
+    public Long getMemberId() { return memberId; }
+    public void setMemberId(Long memberId) { this.memberId = memberId; }
+
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
+
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+
+    public LocalDate getBirthDate() { return birthDate; }
+    public void setBirthDate(LocalDate birthDate) { this.birthDate = birthDate; }
+
+    public Integer getJobCategoryCode() { return jobCategoryCode; }
+    public void setJobCategoryCode(Integer jobCategoryCode) { this.jobCategoryCode = jobCategoryCode; }
+
+    public String getJobCategoryName() { return jobCategoryName; }
+    public void setJobCategoryName(String jobCategoryName) { this.jobCategoryName = jobCategoryName; }
+
+    public UserRole getRole() { return role; }
+    public void setRole(UserRole role) { this.role = role; }
+
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public LocalDateTime getLastLoginAt() { return lastLoginAt; }
+    public void setLastLoginAt(LocalDateTime lastLoginAt) { this.lastLoginAt = lastLoginAt; }
+}
+
+// src/main/java/com/healthsync/user/service/RefreshTokenService.java
+package com.healthsync.user.service;
+
+import com.healthsync.user.domain.RefreshToken;
+
+import java.util.Optional;
+
+public interface RefreshTokenService {
+    RefreshToken createRefreshToken(Long memberId);
+    Optional<RefreshToken> findByToken(String token);
+    RefreshToken verifyExpiration(RefreshToken token);
+    void deleteByMemberId(Long memberId);
+    void deleteExpiredTokens();
+}
+
+// src/main/java/com/healthsync/user/service/RefreshTokenServiceImpl.java
+package com.healthsync.user.service;
+
+import com.healthsync.user.domain.RefreshToken;
+import com.healthsync.user.repository.entity.RefreshTokenEntity;
+import com.healthsync.user.repository.jpa.RefreshTokenRepository;
+import com.healthsync.user.exception.AuthenticationException;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.Optional;
+import java.util.UUID;
+
+@Service
+@Transactional
+public class RefreshTokenServiceImpl implements RefreshTokenService {
+
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final long refreshTokenExpiration;
+
+    public RefreshTokenServiceImpl(RefreshTokenRepository refreshTokenRepository,
+                                   @Value("${jwt.refresh-token-expiration}") long refreshTokenExpiration) {
+        this.refreshTokenRepository = refreshTokenRepository;
+        this.refreshTokenExpiration = refreshTokenExpiration;
+    }
+
+    @Override
+    public RefreshToken createRefreshToken(Long memberId) {
+        // 기존 리프레시 토큰 삭제
+        refreshTokenRepository.deleteByMemberId(memberId);
+
+        // 새 리프레시 토큰 생성
+        String token = UUID.randomUUID().toString();
+        LocalDateTime expiryDate = LocalDateTime.now().plusSeconds(refreshTokenExpiration / 1000);
+
+        RefreshToken refreshToken = new RefreshToken(token, memberId, expiryDate);
+        RefreshTokenEntity entity = RefreshTokenEntity.fromDomain(refreshToken);
+        RefreshTokenEntity savedEntity = refreshTokenRepository.save(entity);
+
+        return savedEntity.toDomain();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<RefreshToken> findByToken(String token) {
+        return refreshTokenRepository.findByToken(token)
+                .map(RefreshTokenEntity::toDomain);
+    }
+
+    @Override
+    public RefreshToken verifyExpiration(RefreshToken token) {
+        if (token.isExpired()) {
+            refreshTokenRepository.deleteByMemberId(token.getMemberId());
+            throw new AuthenticationException("리프레시 토큰이 만료되었습니다. 다시 로그인해주세요.");
+        }
+        return token;
+    }
+
+    @Override
+    public void deleteByMemberId(Long memberId) {
+        refreshTokenRepository.deleteByMemberId(memberId);
+    }
+
+    @Override
+    public void deleteExpiredTokens() {
+        refreshTokenRepository.deleteExpiredTokens(LocalDateTime.now());
+    }
+}
+
+// src/main/java/com/healthsync/user/service/UserService.java
+package com.healthsync.user.service;
+
+import com.healthsync.user.domain.User;
+
+import java.util.Optional;
+
+public interface UserService {
+    User saveUser(User user);
+    Optional<User> findByEmail(String email);
+    Optional<User> findById(Long memberId);
+    Optional<User> findByGoogleUserId(String googleUserId);
+    User updateUser(User user);
+    void updateLastLoginAt(Long memberId);
+    boolean existsByEmail(String email);
+    boolean existsByGoogleUserId(String googleUserId);
+}
+
+// src/main/java/com/healthsync/user/service/UserServiceImpl.java
+package com.healthsync.user.service;
+
+import com.healthsync.user.domain.User;
+import com.healthsync.user.repository.entity.UserEntity;
+import com.healthsync.user.repository.jpa.UserRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.Optional;
+
+@Service
+@Transactional
+public class UserServiceImpl implements UserService {
+
+    private final UserRepository userRepository;
+
+    public UserServiceImpl(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+
+    @Override
+    public User saveUser(User user) {
+        UserEntity entity = UserEntity.fromDomain(user);
+        UserEntity savedEntity = userRepository.save(entity);
+        return savedEntity.toDomain();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<User> findByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .map(UserEntity::toDomain);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<User> findById(Long memberId) {
+        return userRepository.findById(memberId)
+                .map(UserEntity::toDomain);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<User> findByGoogleUserId(String googleUserId) {
+        return userRepository.findByGoogleUserId(googleUserId)
+                .map(UserEntity::toDomain);
+    }
+
+    @Override
+    public User updateUser(User user) {
+        UserEntity entity = UserEntity.fromDomain(user);
+        UserEntity savedEntity = userRepository.save(entity);
+        return savedEntity.toDomain();
+    }
+
+    @Override
+    public void updateLastLoginAt(Long memberId) {
+        userRepository.updateLastLoginAt(memberId, LocalDateTime.now());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean existsByEmail(String email) {
+        return userRepository.existsByEmail(email);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean existsByGoogleUserId(String googleUserId) {
+        return userRepository.existsByGoogleUserId(googleUserId);
+    }
+}
+
+// src/main/java/com/healthsync/user/service/OAuth2UserService.java
+package com.healthsync.user.service;
+
+import com.healthsync.user.domain.User;
+import com.healthsync.user.dto.OAuth2UserInfo;
+import com.healthsync.user.repository.jpa.UserRepository;
+import com.healthsync.user.repository.entity.UserEntity;
+import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
+import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
+import org.springframework.security.oauth2.core.user.OAuth2User;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.Collections;
+
+@Service
+public class OAuth2UserService extends DefaultOAuth2UserService {
+
+    private final UserRepository userRepository;
+
+    public OAuth2UserService(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+
+    @Override
+    public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
+        OAuth2User oauth2User = super.loadUser(userRequest);
+        
+        return processOAuth2User(userRequest, oauth2User);
+    }
+
+    private OAuth2User processOAuth2User(OAuth2UserRequest userRequest, OAuth2User oauth2User) {
+        OAuth2UserInfo oauth2UserInfo = new OAuth2UserInfo(oauth2User.getAttributes());
+        
+        String googleUserId = oauth2UserInfo.getId();
+        String email = oauth2UserInfo.getEmail();
+        String name = oauth2UserInfo.getName();
+        
+        UserEntity userEntity = userRepository.findByGoogleUserId(googleUserId)
+                .orElseGet(() -> {
+                    // 새 사용자 생성 (필수값만 설정)
+                    User newUser = new User(googleUserId, email, name);
+                    return userRepository.save(UserEntity.fromDomain(newUser));
+                });
+
+        // 기존 사용자의 경우 최종 로그인 시간 업데이트
+        if (userEntity.getMemberId() != null) {
+            userEntity.updateLastLoginAt();
+            userRepository.save(userEntity);
+        }
+
+        return new DefaultOAuth2User(
+                Collections.singleton(() -> "ROLE_" + userEntity.getRole().name()),
+                oauth2User.getAttributes(),
+                "sub"
+        );
+    }
+}
+
+// src/main/java/com/healthsync/user/service/JwtTokenService.java
+package com.healthsync.user.service;
+
+import com.healthsync.user.domain.User;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.stereotype.Service;
+
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+
+@Service
+public class JwtTokenService {
+
+    private final JwtEncoder jwtEncoder;
+    private final long accessTokenExpiration;
+    private final long refreshTokenExpiration;
+
+    public JwtTokenService(JwtEncoder jwtEncoder, 
+                          @Value("${jwt.access-token-expiration}") long accessTokenExpiration,
+                          @Value("${jwt.refresh-token-expiration}") long refreshTokenExpiration) {
+        this.jwtEncoder = jwtEncoder;
+        this.accessTokenExpiration = accessTokenExpiration;
+        this.refreshTokenExpiration = refreshTokenExpiration;
+    }
+
+    public String generateAccessToken(User user) {
+        Instant now = Instant.now();
+        Instant expiry = now.plus(accessTokenExpiration, ChronoUnit.MILLIS);
+
+        JwtClaimsSet.Builder claimsBuilder = JwtClaimsSet.builder()
+                .issuer("healthsync")
+                .issuedAt(now)
+                .expiresAt(expiry)
+                .subject(user.getMemberId().toString())
+                .claim("email", user.getEmail())
+                .claim("name", user.getName())
+                .claim("role", "ROLE_" + user.getRole().name())
+                .claim("tokenType", "access");
+
+        // 선택적 정보들 추가
+        if (user.getJobCategoryCode() != null) {
+            claimsBuilder.claim("jobCategoryCode", user.getJobCategoryCode());
+        }
+        if (user.getJobCategoryName() != null) {
+            claimsBuilder.claim("jobCategoryName", user.getJobCategoryName());
+        }
+
+        return jwtEncoder.encode(JwtEncoderParameters.from(claimsBuilder.build())).getTokenValue();
+    }
+
+    public long getAccessTokenExpirationTime() {
+        return accessTokenExpiration;
+    }
+
+    public long getRefreshTokenExpirationTime() {
+        return refreshTokenExpiration;
+    }
+}
+
+// src/main/java/com/healthsync/user/controller/AuthController.java
+package com.healthsync.user.controller;
+
+import com.healthsync.user.domain.User;
+import com.healthsync.user.domain.RefreshToken;
+import com.healthsync.user.dto.LoginResponse;
+import com.healthsync.user.dto.TokenResponse;
+import com.healthsync.user.dto.TokenRefreshRequest;
+import com.healthsync.user.dto.UserProfileResponse;
+import com.healthsync.user.service.JwtTokenService;
+import com.healthsync.user.service.UserService;
+import com.healthsync.user.service.RefreshTokenService;
+import com.healthsync.user.exception.UserNotFoundException;
+import com.healthsync.user.exception.AuthenticationException;
+import com.healthsync.common.dto.ApiResponse;
+import com.healthsync.common.response.ResponseHelper;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.core.user.OAuth2User;
+import org.springframework.web.bind.annotation.*;
+
+import jakarta.validation.Valid;
+
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController {
+
+    private final UserService userService;
+    private final JwtTokenService jwtTokenService;
+    private final RefreshTokenService refreshTokenService;
+
+    public AuthController(UserService userService, JwtTokenService jwtTokenService, RefreshTokenService refreshTokenService) {
+        this.userService = userService;
+        this.jwtTokenService = jwtTokenService;
+        this.refreshTokenService = refreshTokenService;
+    }
+
+    @GetMapping("/success")
+    public ResponseEntity<ApiResponse<LoginResponse>> loginSuccess(@AuthenticationPrincipal OAuth2User principal) {
+        if (principal == null) {
+            throw new UserNotFoundException("OAuth2 인증 정보를 찾을 수 없습니다");
+        }
+
+        String email = principal.getAttribute("email");
+        String googleUserId = principal.getAttribute("sub");
+        
+        // Google User ID로 사용자 조회 (더 정확한 식별자)
+        User user = userService.findByGoogleUserId(googleUserId)
+                .orElseGet(() -> userService.findByEmail(email)
+                        .orElseThrow(() -> new UserNotFoundException("사용자를 찾을 수 없습니다: " + email)));
+
+        // 최종 로그인 시간 업데이트
+        userService.updateLastLoginAt(user.getMemberId());
+
+        // Access Token 생성
+        String accessToken = jwtTokenService.generateAccessToken(user);
+        
+        // Refresh Token 생성
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user.getMemberId());
+
+        LoginResponse loginResponse = new LoginResponse(
+                accessToken,
+                refreshToken.getToken(),
+                jwtTokenService.getAccessTokenExpirationTime(),
+                jwtTokenService.getRefreshTokenExpirationTime(),
+                new UserProfileResponse(user)
+        );
+
+        return ResponseHelper.success(loginResponse, "로그인 성공");
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<ApiResponse<TokenResponse>> refreshToken(@Valid @RequestBody TokenRefreshRequest request) {
+        String requestRefreshToken = request.getRefreshToken();
+
+        RefreshToken refreshToken = refreshTokenService.findByToken(requestRefreshToken)
+                .orElseThrow(() -> new AuthenticationException("유효하지 않은 리프레시 토큰입니다"));
+
+        refreshToken = refreshTokenService.verifyExpiration(refreshToken);
+
+        User user = userService.findById(refreshToken.getMemberId())
+                .orElseThrow(() -> new UserNotFoundException("사용자를 찾을 수 없습니다"));
+
+        // 새로운 Access Token 생성
+        String newAccessToken = jwtTokenService.generateAccessToken(user);
+        
+        // 새로운 Refresh Token 생성 (보안을 위해 리프레시 토큰도 갱신)
+        RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(user.getMemberId());
+
+        TokenResponse tokenResponse = new TokenResponse(
+                newAccessToken,
+                newRefreshToken.getToken(),
+                jwtTokenService.getAccessTokenExpirationTime(),
+                jwtTokenService.getRefreshTokenExpirationTime()
+        );
+
+        return ResponseHelper.success(tokenResponse, "토큰 갱신 성공");
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse<Void>> logout(@RequestHeader(value = "Authorization", required = false) String authHeader) {
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            try {
+                // JWT에서 사용자 ID 추출하여 리프레시 토큰 삭제
+                String token = authHeader.substring(7);
+                // 간단한 방법으로 토큰에서 사용자 ID 추출 (실제로는 JwtDecoder 사용)
+                // 여기서는 현재 인증된 사용자의 모든 리프레시 토큰을 삭제
+                // 실제 구현에서는 JWT를 파싱하여 사용자 ID를 추출해야 합니다
+            } catch (Exception e) {
+                // 토큰 파싱 실패 시 무시
+            }
+        }
+        return ResponseHelper.success(null, "로그아웃 성공");
+    }
+
+    @PostMapping("/logout/{memberId}")
+    public ResponseEntity<ApiResponse<Void>> logoutWithMemberId(@PathVariable Long memberId) {
+        // 특정 사용자의 모든 리프레시 토큰 삭제
+        refreshTokenService.deleteByMemberId(memberId);
+        return ResponseHelper.success(null, "로그아웃 성공");
+    }
+}
+
+// src/main/java/com/healthsync/user/controller/UserController.java
+package com.healthsync.user.controller;
+
+import com.healthsync.user.domain.User;
+import com.healthsync.user.dto.UserProfileResponse;
+import com.healthsync.user.dto.UserUpdateRequest;
+import com.healthsync.user.service.UserService;
+import com.healthsync.user.exception.UserNotFoundException;
+import com.healthsync.common.dto.ApiResponse;
+import com.healthsync.common.response.ResponseHelper;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.*;
+
+import jakarta.validation.Valid;
+
+@RestController
+@RequestMapping("/api/users")
+public class UserController {
+
+    private final UserService userService;
+
+    public UserController(UserService userService) {
+        this.userService = userService;
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse<UserProfileResponse>> getCurrentUser(@AuthenticationPrincipal Jwt jwt) {
+        Long memberId = Long.valueOf(jwt.getSubject());
+        
+        User user = userService.findById(memberId)
+                .orElseThrow(() -> new UserNotFoundException("사용자를 찾을 수 없습니다: " + memberId));
+
+        UserProfileResponse response = new UserProfileResponse(user);
+        return ResponseHelper.success(response, "사용자 정보 조회 성공");
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<UserProfileResponse>> getUserById(@PathVariable Long id) {
+        User user = userService.findById(id)
+                .orElseThrow(() -> new UserNotFoundException("사용자를 찾을 수 없습니다: " + id));
+
+        UserProfileResponse response = new UserProfileResponse(user);
+        return ResponseHelper.success(response, "사용자 정보 조회 성공");
+    }
+
+    @PutMapping("/me")
+    public ResponseEntity<ApiResponse<UserProfileResponse>> updateCurrentUser(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody UserUpdateRequest request) {
+        
+        Long memberId = Long.valueOf(jwt.getSubject());
+        
+        User user = userService.findById(memberId)
+                .orElseThrow(() -> new UserNotFoundException("사용자를 찾을 수 없습니다: " + memberId));
+
+        // 사용자 정보 업데이트
+        if (request.getName() != null) {
+            user.setName(request.getName());
+        }
+        if (request.getBirthDate() != null) {
+            user.setBirthDate(request.getBirthDate());
+        }
+        if (request.getJobCategoryCode() != null) {
+            user.setJobCategory(request.getJobCategory());
+        }
+
+        User updatedUser = userService.updateUser(user);
+        UserProfileResponse response = new UserProfileResponse(updatedUser);
+        
+        return ResponseHelper.success(response, "사용자 정보 업데이트 성공");
+    }
+}
+
+// src/main/java/com/healthsync/user/config/JpaConfig.java
+package com.healthsync.user.config;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
+
+@Configuration
+@EnableJpaAuditing
+public class JpaConfig {
+}
+
+// src/main/java/com/healthsync/user/config/JwtConfig.java
+package com.healthsync.user.config;
+
+import com.nimbusds.jose.jwk.JWK;
+import com.nimbusds.jose.jwk.JWKSet;
+import com.nimbusds.jose.jwk.RSAKey;
+import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
+import com.nimbusds.jose.jwk.source.JWKSource;
+import com.nimbusds.jose.proc.SecurityContext;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
+
+import javax.crypto.spec.SecretKeySpec;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.interfaces.RSAPrivateKey;
+import java.security.interfaces.RSAPublicKey;
+
+@Configuration
+public class JwtConfig {
+
+    @Value("${jwt.secret}")
+    private String jwtSecret;
+
+    @Bean
+    public KeyPair keyPair() {
+        try {
+            KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+            keyPairGenerator.initialize(2048);
+            return keyPairGenerator.generateKeyPair();
+        } catch (Exception e) {
+            throw new RuntimeException("Unable to generate RSA key pair", e);
+        }
+    }
+
+    @Bean
+    public JWKSource<SecurityContext> jwkSource(KeyPair keyPair) {
+        RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
+        RSAPrivateKey privateKey = (RSAPrivateKey) keyPair.getPrivate();
+        
+        JWK jwk = new RSAKey.Builder(publicKey)
+                .privateKey(privateKey)
+                .keyID("healthsync-key-id")
+                .build();
+        
+        JWKSet jwkSet = new JWKSet(jwk);
+        return new ImmutableJWKSet<>(jwkSet);
+    }
+
+    @Bean
+    public JwtEncoder jwtEncoder(JWKSource<SecurityContext> jwkSource) {
+        return new NimbusJwtEncoder(jwkSource);
+    }
+
+    @Bean
+    public JwtDecoder jwtDecoder(KeyPair keyPair) {
+        RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
+        return NimbusJwtDecoder.withPublicKey(publicKey).build();
+    }
+}
+
+// src/main/java/com/healthsync/user/config/OAuth2Config.java
+package com.healthsync.user.config;
+
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class OAuth2Config {
+    // OAuth2 관련 추가 설정이 필요한 경우 여기에 추가
+}
+
+// src/main/java/com/healthsync/user/config/SecurityConfig.java
+package com.healthsync.user.config;
+
+import com.healthsync.user.service.OAuth2UserService;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.Arrays;
+
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+
+    private final OAuth2UserService oAuth2UserService;
+
+    public SecurityConfig(OAuth2UserService oAuth2UserService) {
+        this.oAuth2UserService = oAuth2UserService;
+    }
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            .csrf(csrf -> csrf.disable())
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/", "/login/**", "/oauth2/**", "/api/auth/success", "/api/auth/refresh").permitAll()
+                .requestMatchers("/api/users/**").authenticated()
+                .anyRequest().authenticated()
+            )
+            .oauth2Login(oauth2 -> oauth2
+                .userInfoEndpoint(userInfo -> userInfo.userService(oAuth2UserService))
+                .defaultSuccessUrl("/api/auth/success", true)
+            )
+            .oauth2ResourceServer(oauth2 -> oauth2
+                .jwt(jwt -> jwt
+                    .jwtAuthenticationConverter(jwtAuthenticationConverter())
+                )
+            );
+
+        return http.build();
+    }
+
+    @Bean
+    public JwtAuthenticationConverter jwtAuthenticationConverter() {
+        JwtGrantedAuthoritiesConverter authoritiesConverter = new JwtGrantedAuthoritiesConverter();
+        authoritiesConverter.setAuthorityPrefix("");
+        authoritiesConverter.setAuthoritiesClaimName("role");
+
+        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+        converter.setJwtGrantedAuthoritiesConverter(authoritiesConverter);
+        return converter;
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(Arrays.asList("*"));
+        configuration.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
+}
+
+// src/main/java/com/healthsync/user/exception/UserNotFoundException.java
+package com.healthsync.user.exception;
+
+import com.healthsync.common.exception.CustomException;
+
+public class UserNotFoundException extends CustomException {
+    public UserNotFoundException(String message) {
+        super(message);
+    }
+
+    public UserNotFoundException(String message, Throwable cause) {
+        super(message, cause);
+    }
+}
+
+// src/main/java/com/healthsync/user/exception/AuthenticationException.java
+package com.healthsync.user.exception;
+
+import com.healthsync.common.exception.CustomException;
+
+public class AuthenticationException extends CustomException {
+    public AuthenticationException(String message) {
+        super(message);
+    }
+
+    public AuthenticationException(String message, Throwable cause) {
+        super(message, cause);
+    }
+}
+
+// src/main/java/com/healthsync/common/dto/ApiResponse.java
+package com.healthsync.common.dto;
+
+public class ApiResponse<T> {
+    private boolean success;
+    private String message;
+    private T data;
+    private String error;
+
+    public ApiResponse() {}
+
+    public ApiResponse(boolean success, String message, T data) {
+        this.success = success;
+        this.message = message;
+        this.data = data;
+    }
+
+    public ApiResponse(boolean success, String message, String error) {
+        this.success = success;
+        this.message = message;
+        this.error = error;
+    }
+
+    public static <T> ApiResponse<T> success(T data, String message) {
+        return new ApiResponse<>(true, message, data);
+    }
+
+    public static <T> ApiResponse<T> error(String message, String error) {
+        return new ApiResponse<>(false, message, error);
+    }
+
+    public boolean isSuccess() { return success; }
+    public void setSuccess(boolean success) { this.success = success; }
+
+    public String getMessage() { return message; }
+    public void setMessage(String message) { this.message = message; }
+
+    public T getData() { return data; }
+    public void setData(T data) { this.data = data; }
+
+    public String getError() { return error; }
+    public void setError(String error) { this.error = error; }
+}
+
+// src/main/java/com/healthsync/common/util/JwtUtil.java
+package com.healthsync.common.util;
+
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.stereotype.Component;
+
+@Component
+public class JwtUtil {
+
+    private final JwtDecoder jwtDecoder;
+
+    public JwtUtil(JwtDecoder jwtDecoder) {
+        this.jwtDecoder = jwtDecoder;
+    }
+
+    public Jwt parseToken(String token) {
+        return jwtDecoder.decode(token);
+    }
+
+    public String getUserIdFromToken(String token) {
+        Jwt jwt = parseToken(token);
+        return jwt.getSubject();
+    }
+
+    public String getEmailFromToken(String token) {
+        Jwt jwt = parseToken(token);
+        return jwt.getClaimAsString("email");
+    }
+
+    public String getRoleFromToken(String token) {
+        Jwt jwt = parseToken(token);
+        return jwt.getClaimAsString("role");
+    }
+}
+
+// src/main/java/com/healthsync/common/response/ResponseHelper.java
+package com.healthsync.common.response;
+
+import com.healthsync.common.dto.ApiResponse;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+
+public class ResponseHelper {
+
+    public static <T> ResponseEntity<ApiResponse<T>> success(T data, String message) {
+        return ResponseEntity.ok(ApiResponse.success(data, message));
+    }
+
+    public static <T> ResponseEntity<ApiResponse<T>> created(T data, String message) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(data, message));
+    }
+
+    public static <T> ResponseEntity<ApiResponse<T>> badRequest(String message, String error) {
+        return ResponseEntity.badRequest().body(ApiResponse.error(message, error));
+    }
+
+    public static <T> ResponseEntity<ApiResponse<T>> unauthorized(String message, String error) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error(message, error));
+    }
+
+    public static <T> ResponseEntity<ApiResponse<T>> forbidden(String message, String error) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error(message, error));
+    }
+
+    public static <T> ResponseEntity<ApiResponse<T>> notFound(String message, String error) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(message, error));
+    }
+
+    public static <T> ResponseEntity<ApiResponse<T>> internalServerError(String message, String error) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.error(message, error));
+    }
+}
+
+// src/main/java/com/healthsync/common/exception/CustomException.java
+package com.healthsync.common.exception;
+
+public class CustomException extends RuntimeException {
+    public CustomException(String message) {
+        super(message);
+    }
+
+    public CustomException(String message, Throwable cause) {
+        super(message, cause);
+    }
+}
+
+// src/main/java/com/healthsync/common/exception/GlobalExceptionHandler.java
+package com.healthsync.common.exception;
+
+import com.healthsync.common.dto.ApiResponse;
+import com.healthsync.common.response.ResponseHelper;
+import com.healthsync.user.exception.AuthenticationException;
+import com.healthsync.user.exception.UserNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUserNotFoundException(UserNotFoundException e) {
+        logger.error("User not found: {}", e.getMessage());
+        return ResponseHelper.notFound("사용자를 찾을 수 없습니다", e.getMessage());
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAuthenticationException(AuthenticationException e) {
+        logger.error("Authentication error: {}", e.getMessage());
+        return ResponseHelper.unauthorized("인증에 실패했습니다", e.getMessage());
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccessDeniedException(AccessDeniedException e) {
+        logger.error("Access denied: {}", e.getMessage());
+        return ResponseHelper.forbidden("접근이 거부되었습니다", e.getMessage());
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiResponse<Void>> handleGenericException(Exception e) {
+        logger.error("Unexpected error: {}", e.getMessage(), e);
+        return ResponseHelper.internalServerError("서버 오류가 발생했습니다", e.getMessage());
+    }
+}
+
+// src/main/java/com/healthsync/HealthSyncUserApplication.java  
+package com.healthsync;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class HealthSyncUserApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(HealthSyncUserApplication.class, args);
+    }
+}
+
+// src/main/resources/data.sql
+-- 테스트용 초기 데이터 (선택사항)
+-- INSERT INTO users (google_user_id, email, name, job_category_code, job_category_name, role, created_at, last_login_at) 
+-- VALUES ('test_google_id', 'test@example.com', 'Test User', 1, '개발', 'USER', NOW(), NOW());
+
+-- 직업군 코드 참고:
+-- 1: 개발
+-- 2: PM  
+-- 3: 마케팅
+-- 4: 영업
+-- 5: 인프라운영
+-- 6: 고객상담
+-- 7: 기타
+
+// README.md
+# HealthSync User Service
+
+Spring Boot 3.4.0 기반의 Google OAuth2 로그인 및 JWT 토큰 인증을 제공하는 사용자 서비스입니다.
+
+## 기술 스택
+
+- **Java 17**
+- **Spring Boot 3.4.0**
+- **Spring Security 6**
+- **Spring OAuth2 Client**
+- **Spring OAuth2 Resource Server**
+- **Spring Data JPA**
+- **PostgreSQL**
+
+## 주요 기능
+
+1. **Google OAuth2 로그인**
+   - Spring OAuth2 Client를 통한 Google 소셜 로그인
+   - 사용자 정보 자동 저장 및 업데이트
+
+2. **JWT 토큰 기반 인증**
+   - Spring OAuth2 Resource Server 사용
+   - RSA 키 쌍을 통한 JWT 토큰 생성 및 검증
+   - 토큰 기반 사용자 인증 및 권한 관리
+
+3. **사용자 관리**
+   - 사용자 프로필 조회
+   - 사용자 정보 업데이트
+
+## API 엔드포인트
+
+### 인증 관련
+- `GET /oauth2/authorization/google` - Google 로그인 시작
+- `GET /api/auth/success` - Google 로그인 완료 후 JWT 토큰 발급
+- `POST /api/auth/logout` - 로그아웃
+
+### 사용자 관리
+- `GET /api/users/me` - 현재 사용자 정보 조회 (인증 필요)
+- `GET /api/users/{id}` - 특정 사용자 정보 조회 (인증 필요)
+
+## 환경 설정
+
+### 1. 데이터베이스 설정 (PostgreSQL)
+```sql
+CREATE DATABASE healthsync;
+CREATE USER healthsync_user WITH PASSWORD 'password';
+GRANT ALL PRIVILEGES ON DATABASE healthsync TO healthsync_user;
+```
+
+### 2. Google OAuth2 설정
+Google Cloud Console에서 OAuth2 클라이언트 ID를 생성하고 다음 환경 변수를 설정하세요:
+
+**리다이렉트 URI 설정**: `http://localhost:8080/login/oauth2/code/google`
+
+```bash
+export GOOGLE_CLIENT_ID=your-google-client-id
+export GOOGLE_CLIENT_SECRET=your-google-client-secret
+export JWT_SECRET=your-jwt-secret-key-at-least-32-characters
+```
+
+### 3. 애플리케이션 실행
+```bash
+./gradlew bootRun
+```
+
+## 사용 방법
+
+1. **Google 로그인**: `http://localhost:8080/oauth2/authorization/google`로 접속
+2. **Google 인증 완료 후**: `/api/auth/success`로 리다이렉트되어 JWT 토큰이 포함된 응답을 받음
+3. **API 호출**: `Authorization: Bearer {token}` 헤더로 인증된 API 호출
+
+## 로그인 플로우
+
+```
+1. 클라이언트 -> GET /oauth2/authorization/google
+2. Google OAuth2 서버로 리다이렉트
+3. 사용자 Google 로그인 완료
+4. Google -> 애플리케이션 콜백 (/login/oauth2/code/google)
+5. OAuth2UserService에서 사용자 정보 처리 및 저장
+6. /api/auth/success로 리다이렉트
+7. JWT 토큰 생성 및 응답
+```
+
+## 패키지 구조
+
+레이어드 아키텍처를 기반으로 한 패키지 구조:
+- `domain`: 도메인 모델
+- `service`: 비즈니스 로직
+- `controller`: REST API 컨트롤러
+- `repository`: 데이터 접근 계층
+- `config`: 설정 클래스
+- `dto`: 데이터 전송 객체
+- `exception`: 예외 처리
+
+## 보안 고려사항
+
+- JWT 토큰은 RSA 키 쌍으로 서명됨
+- CORS 설정으로 크로스 오리진 요청 제어
+- Spring Security를 통한 엔드포인트 보안
+- 민감한 정보는 환경 변수로 관리
+
+## 문제 해결
+
+### 일반적인 오류
+1. **Google OAuth2 설정 오류**: 클라이언트 ID/Secret과 리다이렉트 URI 확인
+2. **JWT 토큰 오류**: RSA 키 쌍 생성 및 설정 확인
+3. **데이터베이스 연결 오류**: PostgreSQL 서버 상태 및 연결 정보 확인
