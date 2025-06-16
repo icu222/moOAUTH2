@@ -146,4 +146,14 @@ public class HealthCheckupRaw {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    // 성별 관련 메서드 추가
+    public Gender getGender() {
+        return Gender.fromCode(this.genderCode);
+    }
+
+    public String getGenderDescription() {
+        Gender gender = getGender();
+        return gender != null ? gender.getDescription() : "미상";
+    }
 }

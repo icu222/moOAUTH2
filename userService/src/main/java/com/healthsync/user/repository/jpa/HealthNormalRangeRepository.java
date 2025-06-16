@@ -31,4 +31,10 @@ public interface HealthNormalRangeRepository extends JpaRepository<HealthNormalR
 
     // 건강 항목명으로 조회
     List<HealthNormalRangeEntity> findByHealthItemName(String healthItemName);
+
+    // 성별에 맞는 정상 범위 조회 (해당 성별 + 범용(null))
+    @Query("SELECT h FROM HealthNormalRangeEntity h " +
+            "WHERE h.genderCode = :genderCode OR h.genderCode IS NULL " +
+            "ORDER BY h.healthItemCode, h.genderCode DESC")
+    List<HealthNormalRangeEntity> findRelevantByGenderCode(@Param("genderCode") Integer genderCode);
 }

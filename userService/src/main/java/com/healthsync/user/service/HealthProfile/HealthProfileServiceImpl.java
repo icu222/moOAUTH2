@@ -39,8 +39,8 @@ public class HealthProfileServiceImpl implements HealthProfileService {
                 .findMostRecentByNameAndBirthDate(name, birthDate);
 
         if (entity.isPresent()) {
-            logger.info("건강검진 데이터 발견 - 검진년도: {}, Raw ID: {}",
-                    entity.get().getReferenceYear(), entity.get().getRawId());
+            logger.info("건강검진 데이터 발견 - 검진년도: {}, Raw ID: {}, 성별 코드: {}",
+                    entity.get().getReferenceYear(), entity.get().getRawId(), entity.get().getGenderCode());
             return Optional.of(entity.get().toDomain());
         } else {
             logger.warn("해당 사용자의 건강검진 데이터를 찾을 수 없음 - 이름: {}, 생년월일: {}", name, birthDate);
@@ -103,5 +103,19 @@ public class HealthProfileServiceImpl implements HealthProfileService {
                     healthItemCode, genderCode);
             return Optional.empty();
         }
+    }
+
+    @Override
+    public List<HealthNormalRange> getRelevantHealthNormalRanges(Integer genderCode) {
+        logger.info("성별에 맞는 건강 정상 범위 데이터 조회 - 성별 코드: {}", genderCode);
+
+        List<HealthNormalRangeEntity> entities = healthNormalRangeRepository
+                .findRelevantByGenderCode(genderCode);
+
+        logger.info("관련 건강 정상 범위 데이터 {}건 조회됨", entities.size());
+
+        return entities.stream()
+                .map(HealthNormalRangeEntity::toDomain)
+                .collect(Collectors.toList());
     }
 }

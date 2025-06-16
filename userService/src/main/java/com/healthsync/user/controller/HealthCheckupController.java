@@ -42,7 +42,7 @@ public class HealthCheckupController {
     @GetMapping("/summary")
     @Operation(
             summary = "건강 프로필 요약 조회",
-            description = "사용자의 최근 건강검진 데이터와 정상 범위를 함께 조회합니다."
+            description = "사용자의 최근 건강검진 데이터를 리턴. 정상 범주는 프론트에서 처리하기로 결정 ."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "건강 프로필 요약 조회 성공"),
@@ -82,17 +82,18 @@ public class HealthCheckupController {
             );
         }
 
-        // 정상 범위 데이터 조회
-        List<HealthNormalRange> normalRanges = healthProfileService.getAllHealthNormalRanges();
+        HealthCheckupRaw checkupData = recentCheckup.get();
+        Integer genderCode = checkupData.getGenderCode();
+
+        // 성별에 맞는 정상 범위 데이터 조회
+        List<HealthNormalRange> normalRanges = healthProfileService.getRelevantHealthNormalRanges(genderCode);
 
         // 응답 객체 생성
-        HealthProfileSummaryResponse response = new HealthProfileSummaryResponse(
-                recentCheckup.get(),
-                normalRanges
-        );
+        // HealthProfileSummaryResponse response = new HealthProfileSummaryResponse(checkupData, normalRanges);
+        HealthProfileSummaryResponse response = new HealthProfileSummaryResponse(checkupData);
 
-        logger.info("건강 프로필 요약 조회 성공 - 검진년도: {}, 정상범위 {}건",
-                recentCheckup.get().getReferenceYear(), normalRanges.size());
+        logger.info("건강 프로필 요약 조회 성공 - 검진년도: {}, 성별: {}, 정상범위 {}건",
+                checkupData.getReferenceYear(), checkupData.getGenderDescription(), normalRanges.size());
 
         return com.healthsync.common.response.ResponseHelper.success(
                 response,

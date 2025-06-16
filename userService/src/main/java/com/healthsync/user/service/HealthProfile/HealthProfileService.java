@@ -33,4 +33,9 @@ public interface HealthProfileService {
      * 특정 건강 항목의 정상 범위 조회
      */
     Optional<HealthNormalRange> getHealthNormalRangeByItemCode(String healthItemCode, Integer genderCode);
+
+    /**
+     * 성별에 맞는 건강 정상 범위 데이터 조회 (null 허용하는 범용 범위 포함)
+     */
+    List<HealthNormalRange> getRelevantHealthNormalRanges(Integer genderCode);
 }
