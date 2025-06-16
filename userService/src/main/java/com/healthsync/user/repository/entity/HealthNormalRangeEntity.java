@@ -74,6 +74,8 @@ public class HealthNormalRangeEntity {
 
     // Entity ↔ Domain 변환 메서드
     public static HealthNormalRangeEntity fromDomain(HealthNormalRange healthNormalRange) {
+        if (healthNormalRange == null) return null;
+
         HealthNormalRangeEntity entity = new HealthNormalRangeEntity();
         entity.rangeId = healthNormalRange.getRangeId();
         entity.healthItemCode = healthNormalRange.getHealthItemCode();
@@ -89,17 +91,17 @@ public class HealthNormalRangeEntity {
     }
 
     public HealthNormalRange toDomain() {
-        HealthNormalRange healthNormalRange = new HealthNormalRange();
-        healthNormalRange.setRangeId(this.rangeId);
-        healthNormalRange.setHealthItemCode(this.healthItemCode);
-        healthNormalRange.setHealthItemName(this.healthItemName);
-        healthNormalRange.setGenderCode(this.genderCode);
-        healthNormalRange.setUnit(this.unit);
-        healthNormalRange.setNormalRange(this.normalRange);
-        healthNormalRange.setWarningRange(this.warningRange);
-        healthNormalRange.setDangerRange(this.dangerRange);
-        healthNormalRange.setNote(this.note);
-        healthNormalRange.setCreatedAt(this.createdAt);
-        return healthNormalRange;
+        HealthNormalRange domain = new HealthNormalRange();
+        domain.setRangeId(this.rangeId);
+        domain.setHealthItemCode(this.healthItemCode);
+        domain.setHealthItemName(this.healthItemName);
+        domain.setGenderCode(this.genderCode);
+        domain.setUnit(this.unit);
+        domain.setNormalRange(this.normalRange);
+        domain.setWarningRange(this.warningRange);
+        domain.setDangerRange(this.dangerRange);
+        domain.setNote(this.note);
+        domain.setCreatedAt(this.createdAt);
+        return domain;
     }
 }

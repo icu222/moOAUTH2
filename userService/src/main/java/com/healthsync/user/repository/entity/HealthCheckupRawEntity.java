@@ -196,6 +196,8 @@ public class HealthCheckupRawEntity {
 
     // Entity ↔ Domain 변환 메서드
     public static HealthCheckupRawEntity fromDomain(HealthCheckupRaw healthCheckupRaw) {
+        if (healthCheckupRaw == null) return null;
+
         HealthCheckupRawEntity entity = new HealthCheckupRawEntity();
         entity.rawId = healthCheckupRaw.getRawId();
         entity.referenceYear = healthCheckupRaw.getReferenceYear();
@@ -231,37 +233,37 @@ public class HealthCheckupRawEntity {
     }
 
     public HealthCheckupRaw toDomain() {
-        HealthCheckupRaw healthCheckupRaw = new HealthCheckupRaw();
-        healthCheckupRaw.setRawId(this.rawId);
-        healthCheckupRaw.setReferenceYear(this.referenceYear);
-        healthCheckupRaw.setBirthDate(this.birthDate);
-        healthCheckupRaw.setName(this.name);
-        healthCheckupRaw.setRegionCode(this.regionCode);
-        healthCheckupRaw.setGenderCode(this.genderCode);
-        healthCheckupRaw.setAge(this.age);
-        healthCheckupRaw.setHeight(this.height);
-        healthCheckupRaw.setWeight(this.weight);
-        healthCheckupRaw.setWaistCircumference(this.waistCircumference);
-        healthCheckupRaw.setVisualAcuityLeft(this.visualAcuityLeft);
-        healthCheckupRaw.setVisualAcuityRight(this.visualAcuityRight);
-        healthCheckupRaw.setHearingLeft(this.hearingLeft);
-        healthCheckupRaw.setHearingRight(this.hearingRight);
-        healthCheckupRaw.setSystolicBp(this.systolicBp);
-        healthCheckupRaw.setDiastolicBp(this.diastolicBp);
-        healthCheckupRaw.setFastingGlucose(this.fastingGlucose);
-        healthCheckupRaw.setTotalCholesterol(this.totalCholesterol);
-        healthCheckupRaw.setTriglyceride(this.triglyceride);
-        healthCheckupRaw.setHdlCholesterol(this.hdlCholesterol);
-        healthCheckupRaw.setLdlCholesterol(this.ldlCholesterol);
-        healthCheckupRaw.setHemoglobin(this.hemoglobin);
-        healthCheckupRaw.setUrineProtein(this.urineProtein);
-        healthCheckupRaw.setSerumCreatinine(this.serumCreatinine);
-        healthCheckupRaw.setAst(this.ast);
-        healthCheckupRaw.setAlt(this.alt);
-        healthCheckupRaw.setGammaGtp(this.gammaGtp);
-        healthCheckupRaw.setSmokingStatus(this.smokingStatus);
-        healthCheckupRaw.setDrinkingStatus(this.drinkingStatus);
-        healthCheckupRaw.setCreatedAt(this.createdAt);
-        return healthCheckupRaw;
+        HealthCheckupRaw domain = new HealthCheckupRaw();
+        domain.setRawId(this.rawId);
+        domain.setReferenceYear(this.referenceYear);
+        domain.setBirthDate(this.birthDate);
+        domain.setName(this.name);
+        domain.setRegionCode(this.regionCode);
+        domain.setGenderCode(this.genderCode);
+        domain.setAge(this.age);
+        domain.setHeight(this.height);
+        domain.setWeight(this.weight);
+        domain.setWaistCircumference(this.waistCircumference);
+        domain.setVisualAcuityLeft(this.visualAcuityLeft);
+        domain.setVisualAcuityRight(this.visualAcuityRight);
+        domain.setHearingLeft(this.hearingLeft);
+        domain.setHearingRight(this.hearingRight);
+        domain.setSystolicBp(this.systolicBp);
+        domain.setDiastolicBp(this.diastolicBp);
+        domain.setFastingGlucose(this.fastingGlucose);
+        domain.setTotalCholesterol(this.totalCholesterol);
+        domain.setTriglyceride(this.triglyceride);
+        domain.setHdlCholesterol(this.hdlCholesterol);
+        domain.setLdlCholesterol(this.ldlCholesterol);
+        domain.setHemoglobin(this.hemoglobin);
+        domain.setUrineProtein(this.urineProtein);
+        domain.setSerumCreatinine(this.serumCreatinine);
+        domain.setAst(this.ast);
+        domain.setAlt(this.alt);
+        domain.setGammaGtp(this.gammaGtp);
+        domain.setSmokingStatus(this.smokingStatus);
+        domain.setDrinkingStatus(this.drinkingStatus);
+        domain.setCreatedAt(this.createdAt);
+        return domain;
     }
 }

@@ -108,27 +108,4 @@ public class UserController {
         return com.healthsync.common.response.ResponseHelper.success(response, "사용자 정보 업데이트 성공");
     }
 
-
-    @GetMapping("/healthProfile/{id}")
-    @Operation(
-            summary = "최근 건강검진 데이터 불러오기",
-            description = "국민건강보험공단 데이터로부터 최근 건강검진 데이터를 불러 옵니다."
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "건강검진 정보 조회 성공",
-                    content = @Content(schema = @Schema(implementation = UserProfileResponse.class))),
-            @ApiResponse(responseCode = "401", description = "인증 실패"),
-            @ApiResponse(responseCode = "404", description = "건강검진 정보를 찾을 수 없음")
-    })
-    public ResponseEntity<com.healthsync.common.dto.ApiResponse<UserProfileResponse>> getUserHealthProfileById(
-            @Parameter(description = "조회할 사용자의 회원 일련번호", required = true, example = "1")
-            @PathVariable Long id) {
-
-        User user = userService.findById(id)
-                .orElseThrow(() -> new UserNotFoundException("사용자를 찾을 수 없습니다: " + id));
-
-        UserProfileResponse response = new UserProfileResponse(user);
-        return com.healthsync.common.response.ResponseHelper.success(response, "사용자 정보 조회 성공");
-    }
-
 }
