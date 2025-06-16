@@ -1,6 +1,6 @@
-package com.healthsync.user.service;
+package com.healthsync.user.service.UserProfile;
 
-import com.healthsync.user.domain.User;
+import com.healthsync.user.domain.Oauth.User;
 
 import java.util.Optional;
 

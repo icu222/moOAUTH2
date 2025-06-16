@@ -1,12 +1,12 @@
 package com.healthsync.user.config;
 
-import com.healthsync.user.domain.User;
-import com.healthsync.user.domain.RefreshToken;
-import com.healthsync.user.dto.LoginResponse;
-import com.healthsync.user.dto.UserProfileResponse;
-import com.healthsync.user.service.JwtTokenService;
-import com.healthsync.user.service.UserService;
-import com.healthsync.user.service.RefreshTokenService;
+import com.healthsync.user.domain.Oauth.User;
+import com.healthsync.user.domain.Oauth.RefreshToken;
+import com.healthsync.user.dto.UserProfile.LoginResponse;
+import com.healthsync.user.dto.UserProfile.UserProfileResponse;
+import com.healthsync.user.service.Oauth.JwtTokenService;
+import com.healthsync.user.service.UserProfile.UserService;
+import com.healthsync.user.service.Oauth.RefreshTokenService;
 import com.healthsync.common.dto.ApiResponse;
 import com.healthsync.common.response.ResponseHelper;
 import com.fasterxml.jackson.databind.ObjectMapper;

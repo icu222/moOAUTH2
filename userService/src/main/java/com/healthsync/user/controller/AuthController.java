@@ -1,13 +1,13 @@
 // src/main/java/com/healthsync/user/controller/AuthController.java - 수정된 버전
 package com.healthsync.user.controller;
 
-import com.healthsync.user.domain.User;
-import com.healthsync.user.domain.RefreshToken;
-import com.healthsync.user.dto.TokenResponse;
-import com.healthsync.user.dto.TokenRefreshRequest;
-import com.healthsync.user.service.JwtTokenService;
-import com.healthsync.user.service.UserService;
-import com.healthsync.user.service.RefreshTokenService;
+import com.healthsync.user.domain.Oauth.User;
+import com.healthsync.user.domain.Oauth.RefreshToken;
+import com.healthsync.user.dto.Oauth.TokenResponse;
+import com.healthsync.user.dto.Oauth.TokenRefreshRequest;
+import com.healthsync.user.service.Oauth.JwtTokenService;
+import com.healthsync.user.service.UserProfile.UserService;
+import com.healthsync.user.service.Oauth.RefreshTokenService;
 import com.healthsync.user.exception.UserNotFoundException;
 import com.healthsync.user.exception.AuthenticationException;
 

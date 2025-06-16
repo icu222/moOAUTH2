@@ -1,6 +1,6 @@
-package com.healthsync.user.service;
+package com.healthsync.user.service.Oauth;
 
-import com.healthsync.user.dto.OAuth2UserInfo;
+import com.healthsync.user.dto.Oauth.OAuth2UserInfo;
 import com.healthsync.user.repository.jpa.UserRepository;
 import com.healthsync.user.repository.entity.UserEntity;
 import org.slf4j.Logger;

@@ -1,6 +1,6 @@
 package com.healthsync.user.repository.entity;
 
-import com.healthsync.user.domain.User;
+import com.healthsync.user.domain.Oauth.User;
 import jakarta.persistence.*;
 
 import java.time.LocalDate;

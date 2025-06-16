@@ -1,6 +1,6 @@
 package com.healthsync.user.config;
 
-import com.healthsync.user.service.OAuth2UserService;
+import com.healthsync.user.service.Oauth.OAuth2UserService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;

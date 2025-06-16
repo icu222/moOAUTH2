@@ -1,9 +1,9 @@
 package com.healthsync.user.controller;
 
-import com.healthsync.user.domain.User;
-import com.healthsync.user.dto.UserProfileResponse;
-import com.healthsync.user.dto.UserUpdateRequest;
-import com.healthsync.user.service.UserService;
+import com.healthsync.user.domain.Oauth.User;
+import com.healthsync.user.dto.UserProfile.UserProfileResponse;
+import com.healthsync.user.dto.UserProfile.UserUpdateRequest;
+import com.healthsync.user.service.UserProfile.UserService;
 import com.healthsync.user.exception.UserNotFoundException;
 
 import io.swagger.v3.oas.annotations.Operation;

@@ -1,6 +1,6 @@
-package com.healthsync.user.dto;
+package com.healthsync.user.dto.UserProfile;
 
-import com.healthsync.user.domain.User;
+import com.healthsync.user.domain.Oauth.User;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;

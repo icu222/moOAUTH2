@@ -1,4 +1,4 @@
-package com.healthsync.user.domain;
+package com.healthsync.user.domain.Oauth;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;

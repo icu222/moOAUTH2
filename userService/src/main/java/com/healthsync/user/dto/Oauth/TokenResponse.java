@@ -1,4 +1,4 @@
-package com.healthsync.user.dto;
+package com.healthsync.user.dto.Oauth;
 
 public class TokenResponse {
     private String accessToken;

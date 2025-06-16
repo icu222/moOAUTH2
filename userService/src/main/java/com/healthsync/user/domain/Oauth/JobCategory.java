@@ -1,4 +1,4 @@
-package com.healthsync.user.domain;
+package com.healthsync.user.domain.Oauth;
 
 public enum JobCategory {
     DEVELOPER(1, "개발"),

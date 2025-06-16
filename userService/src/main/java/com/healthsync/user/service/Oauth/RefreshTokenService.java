@@ -1,6 +1,6 @@
-package com.healthsync.user.service;
+package com.healthsync.user.service.Oauth;
 
-import com.healthsync.user.domain.RefreshToken;
+import com.healthsync.user.domain.Oauth.RefreshToken;
 
 import java.util.Optional;
 

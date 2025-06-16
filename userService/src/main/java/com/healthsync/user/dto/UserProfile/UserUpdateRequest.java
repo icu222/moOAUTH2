@@ -1,6 +1,4 @@
-package com.healthsync.user.dto;
-
-import jakarta.validation.constraints.Past;
+package com.healthsync.user.dto.UserProfile;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
